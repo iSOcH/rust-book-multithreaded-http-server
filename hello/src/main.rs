@@ -37,9 +37,11 @@ fn main() {
         for stream in listener.incoming() {
             let stream = stream.unwrap();
             println!("Connection established with {:?}", stream);
-            
-            // TODO: this panics if a new request comes in while we are still waiting for completion of threads
-            sender.send(StreamOrStop::Stream(stream)).unwrap();
+
+            if let Err(e) = sender.send(StreamOrStop::Stream(stream)) {
+                eprintln!("Error forwarding stream, likely a new connection came in during shutdown: {e}");
+                break;
+            }
         }
     });
 
