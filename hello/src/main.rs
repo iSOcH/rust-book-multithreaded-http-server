@@ -74,7 +74,9 @@ fn handle_connection(mut stream: TcpStream) {
 
             response.push_str(&format!("\r\nContent-Length: {len}\r\n\r\n{file_contents}"));
         }
-        None => {}
+        None => {
+            response.push_str("\r\n\r\n");
+        }
     };
 
     stream.write_all(response.as_bytes()).unwrap();
