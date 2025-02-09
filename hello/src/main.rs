@@ -1,5 +1,8 @@
-use std::io::Write;
-use std::net::TcpListener;
+use std::{
+    fs,
+    io::{prelude::*, BufReader},
+    net::{TcpListener, TcpStream},
+};
 
 fn main() {
     let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
@@ -7,11 +10,31 @@ fn main() {
     println!("Listener started on {:?}", listener);
     
     for stream in listener.incoming() {
-        let mut stream = stream.unwrap();
+        let stream = stream.unwrap();
         println!("Connection established with {:?}", stream);
-        
-        stream.write_fmt(format_args!("Hello World!\n")).unwrap();
-        
-        println!("Connection closing with {:?}", stream);
+
+        handle_connection(stream);
     }
+}
+
+fn handle_connection(mut stream: TcpStream) {
+    let buf_reader = BufReader::new(&stream);
+
+    let http_request: Vec<_> = buf_reader
+        .lines()
+        .map(|result| result.unwrap())
+        .take_while(|line| !line.is_empty())
+        .collect();
+
+    println!("Request: {http_request:#?}");
+
+    let status_line = "HTTP/1.1 200 OK";
+    let file_contents = fs::read_to_string("hello.html").unwrap();
+    let len = file_contents.len();
+    
+    let response = format!("{status_line}\r\nContent-Length: {len}\r\n\r\n{file_contents}");
+    
+    stream.write_all(response.as_bytes()).unwrap();
+
+    println!("Connection closing with {:?}", stream);
 }
