@@ -28,13 +28,38 @@ fn handle_connection(mut stream: TcpStream) {
 
     println!("Request: {http_request:#?}");
 
-    let status_line = "HTTP/1.1 200 OK";
-    let file_contents = fs::read_to_string("hello.html").unwrap();
-    let len = file_contents.len();
-    
-    let response = format!("{status_line}\r\nContent-Length: {len}\r\n\r\n{file_contents}");
-    
+    let first_request_line = http_request.first().unwrap();
+
+    let result = if first_request_line == "GET / HTTP/1.1" {
+        FileResult {
+            status_line: "HTTP/1.1 200 OK".to_owned(),
+            filename: Some("hello.html".to_owned())
+        }
+    } else {
+        FileResult {
+            status_line: "HTTP/1.1 404 NOT FOUND".to_owned(),
+            filename: Some("404.html".to_owned())
+        }
+    };
+
+    let mut response = result.status_line;
+
+    match result.filename {
+        Some(file_name) => {
+            let file_contents = fs::read_to_string(file_name).unwrap();
+            let len = file_contents.len();
+
+            response.push_str(&format!("\r\nContent-Length: {len}\r\n\r\n{file_contents}"));
+        }
+        None => {}
+    };
+
     stream.write_all(response.as_bytes()).unwrap();
 
     println!("Connection closing with {:?}", stream);
+}
+
+struct FileResult {
+    status_line: String,
+    filename: Option<String>,
 }
