@@ -14,7 +14,7 @@ fn main() {
 
     let pool = ThreadPool::build(4).expect("could not start up thread pool");
     
-    for stream in listener.incoming() {
+    for stream in listener.incoming().take(2) {
         let stream = stream.unwrap();
         println!("Connection established with {:?}", stream);
 
@@ -45,20 +45,20 @@ fn handle_connection(mut stream: TcpStream) {
     // [..] gets the (complete) string as slice (String -> str), since string literals are &str we also need the &
     let result = match &first_request_line[..] {
         "GET / HTTP/1.1" => {
-            FileResult {
+            HttpResult {
                 status_line: "HTTP/1.1 200 OK".to_owned(),
                 filename: Some("hello.html".to_owned())
             }
         },
         "GET /sleep HTTP/1.1" => {
             thread::sleep(Duration::from_secs(5));
-            FileResult { status_line: "HTTP/1.1 200 OK".to_owned(), filename: None }
+            HttpResult { status_line: "HTTP/1.1 200 OK".to_owned(), filename: None }
         },
         "GET /nofile HTTP/1.1" => {
-            FileResult { status_line: "HTTP/1.1 200 OK".to_owned(), filename: None }
+            HttpResult { status_line: "HTTP/1.1 200 OK".to_owned(), filename: None }
         },
         _ => {
-            FileResult {
+            HttpResult {
                 status_line: "HTTP/1.1 404 NOT FOUND".to_owned(),
                 filename: Some("404.html".to_owned())
             }
@@ -82,7 +82,7 @@ fn handle_connection(mut stream: TcpStream) {
     println!("Connection closing with {:?}", stream);
 }
 
-struct FileResult {
+struct HttpResult {
     status_line: String,
     filename: Option<String>,
 }

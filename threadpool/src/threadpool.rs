@@ -10,7 +10,7 @@ use crate::{Job, PoolCreationError};
 
 pub struct ThreadPool {
     workers: Vec<Worker>,
-    sender: mpsc::Sender<Job>
+    sender: Option<mpsc::Sender<Job>>
 }
 
 impl ThreadPool {
@@ -28,7 +28,7 @@ impl ThreadPool {
             workers.push(Worker::new(thread_id, Arc::clone(&shareable_receiver)));
         }
 
-        Ok(ThreadPool { workers, sender })
+        Ok(ThreadPool { workers, sender: Some(sender) })
     }
 
     pub fn execute<F>(&self, f: F)
@@ -36,6 +36,26 @@ impl ThreadPool {
         F: FnOnce() + Send + 'static,
     {
         let job = Box::new(f);
-        self.sender.send(job).unwrap();
+
+        // without as_ref sender would be moved which causes compile error "cannot move out of `self.sender` which is behind a shared reference"
+        // with note: `Option::<T>::expect` takes ownership of the receiver `self`, which moves `self.sender`
+        self.sender.as_ref().expect("Execute called on dropped ThreadPool").send(job).unwrap();
+    }
+}
+
+impl Drop for ThreadPool {
+    fn drop(&mut self) {
+        if let Some(_) = self.sender.take() {}
+        assert!(self.sender.is_none(), "Should have moved out sender");
+
+        while let Some(worker) = self.workers.pop() {
+            print!("Waiting for shutdown of worker {}...", worker.id);
+
+            // without this call `worker` would be dropped anyway, but only after the loop iteration.
+            // by calling std::mem::drop explicitly here, we can control the point in time when it happens
+            drop(worker);
+
+            println!(" done");
+        }
     }
 }
