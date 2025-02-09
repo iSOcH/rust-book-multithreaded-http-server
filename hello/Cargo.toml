@@ -5,3 +5,4 @@ edition = "2021"
 
 [dependencies]
 threadpool = { path = "../threadpool" }
+ctrlc = "3.4.5"

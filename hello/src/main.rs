@@ -5,16 +5,22 @@ use std::{
     thread,
     time::Duration,
 };
+use std::ops::{Deref};
+use std::sync::{Arc, Mutex};
 use threadpool::ThreadPool;
 
 fn main() {
+    let stopped = Arc::new(Mutex::new(false));
+    let stopped_clone = Arc::clone(&stopped);
+    ctrlc::set_handler(move || *stopped_clone.lock().unwrap() = true).expect("Error setting Ctrl-C handler");
+
     let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
 
     println!("Listener started on {:?}", listener);
 
     let pool = ThreadPool::build(4).expect("could not start up thread pool");
     
-    for stream in listener.incoming().take(2) {
+    for stream in listener.incoming().take_while(|_| !stopped.lock().unwrap().deref()) {
         let stream = stream.unwrap();
         println!("Connection established with {:?}", stream);
 
