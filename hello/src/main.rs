@@ -5,27 +5,55 @@ use std::{
     thread,
     time::Duration,
 };
-use std::ops::{Deref};
-use std::sync::{Arc, Mutex};
+use std::sync::{mpsc, Arc};
 use threadpool::ThreadPool;
 
 fn main() {
-    let stopped = Arc::new(Mutex::new(false));
-    let stopped_clone = Arc::clone(&stopped);
-    ctrlc::set_handler(move || *stopped_clone.lock().unwrap() = true).expect("Error setting Ctrl-C handler");
-
     let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
-
     println!("Listener started on {:?}", listener);
 
     let pool = ThreadPool::build(4).expect("could not start up thread pool");
-    
-    for stream in listener.incoming().take_while(|_| !stopped.lock().unwrap().deref()) {
-        let stream = stream.unwrap();
-        println!("Connection established with {:?}", stream);
 
-        pool.execute(|| handle_connection(stream));
+    /*
+    quite complicated workaround so we can cancel without an actual request coming in:
+    instead of directly iterating over listener.incoming() and observing some flag for shutdown (which only gets noticed when an actual connection comes in),
+    we introduce another channel which transports StreamOrStop. our main thread consumes from this channel and either
+    - forwards actual connections to ThreadPool
+    - stops reading from the channel and returns from main. this causes drop of pool which causes threads to stop (and waits for them)
+     */
+    let (sender, receiver) = mpsc::channel();
+    let sender = Arc::new(sender);
+    let sender_clone = Arc::clone(&sender);
+
+    ctrlc::
+        set_handler(move || {
+            println!("Received Ctrl-C, shutting down...");
+            sender_clone.send(StreamOrStop::Stop).unwrap();
+        })
+        .expect("Error setting Ctrl-C handler");
+
+    // this thread is not stopping. we spawn it so we can leave main()
+    thread::spawn(move || {
+        for stream in listener.incoming() {
+            let stream = stream.unwrap();
+            println!("Connection established with {:?}", stream);
+            
+            // TODO: this panics if a new request comes in while we are still waiting for completion of threads
+            sender.send(StreamOrStop::Stream(stream)).unwrap();
+        }
+    });
+
+    for stream in receiver.iter() {
+        match stream {
+            StreamOrStop::Stream(s) => pool.execute(|| handle_connection(s)),
+            StreamOrStop::Stop => break,
+        }
     }
+}
+
+enum StreamOrStop {
+    Stream(TcpStream),
+    Stop,
 }
 
 fn handle_connection(mut stream: TcpStream) {
