@@ -2,6 +2,8 @@ use std::{
     fs,
     io::{prelude::*, BufReader},
     net::{TcpListener, TcpStream},
+    thread,
+    time::Duration,
 };
 
 fn main() {
@@ -26,19 +28,34 @@ fn handle_connection(mut stream: TcpStream) {
         .take_while(|line| !line.is_empty())
         .collect();
 
-    println!("Request: {http_request:#?}");
+    // println!("Request: {http_request:#?}");
 
-    let first_request_line = http_request.first().unwrap();
+    let first_request_line = http_request.first();
 
-    let result = if first_request_line == "GET / HTTP/1.1" {
-        FileResult {
-            status_line: "HTTP/1.1 200 OK".to_owned(),
-            filename: Some("hello.html".to_owned())
-        }
-    } else {
-        FileResult {
-            status_line: "HTTP/1.1 404 NOT FOUND".to_owned(),
-            filename: Some("404.html".to_owned())
+    if first_request_line.is_none() {
+        eprintln!("Received empty request from {:?}, dropping connection", stream.peer_addr());
+        return;
+    }
+
+    let first_request_line = first_request_line.unwrap();
+
+    // [..] gets the (complete) string as slice (String -> str), since string literals are &str we also need the &
+    let result = match &first_request_line[..] {
+        "GET / HTTP/1.1" => {
+            FileResult {
+                status_line: "HTTP/1.1 200 OK".to_owned(),
+                filename: Some("hello.html".to_owned())
+            }
+        },
+        "GET /sleep HTTP/1.1" => {
+            thread::sleep(Duration::from_secs(5));
+            FileResult { status_line: "HTTP/1.1 200 OK".to_owned(), filename: None }
+        },
+        _ => {
+            FileResult {
+                status_line: "HTTP/1.1 404 NOT FOUND".to_owned(),
+                filename: Some("404.html".to_owned())
+            }
         }
     };
 
