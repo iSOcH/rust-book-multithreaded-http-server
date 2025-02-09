@@ -69,14 +69,13 @@ fn handle_connection(mut stream: TcpStream) {
 
     // println!("Request: {http_request:#?}");
 
-    let first_request_line = http_request.first();
-
-    if first_request_line.is_none() {
-        eprintln!("Received empty request from {:?}, dropping connection", stream.peer_addr());
-        return;
-    }
-
-    let first_request_line = first_request_line.unwrap();
+    let first_request_line = match http_request.first() {
+        Some(l) => l,
+        None => {
+            eprintln!("Received empty request from {:?}, dropping connection", stream.peer_addr());
+            return;
+        }
+    };
 
     // [..] gets the (complete) string as slice (String -> str), since string literals are &str we also need the &
     let result = match &first_request_line[..] {
