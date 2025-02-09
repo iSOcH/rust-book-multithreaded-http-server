@@ -5,17 +5,20 @@ use std::{
     thread,
     time::Duration,
 };
+use threadpool::*;
 
 fn main() {
     let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
 
     println!("Listener started on {:?}", listener);
+
+    let pool = ThreadPool::build(4).expect("could not start up thread pool");
     
     for stream in listener.incoming() {
         let stream = stream.unwrap();
         println!("Connection established with {:?}", stream);
 
-        handle_connection(stream);
+        pool.execute(|| handle_connection(stream));
     }
 }
 
@@ -49,6 +52,9 @@ fn handle_connection(mut stream: TcpStream) {
         },
         "GET /sleep HTTP/1.1" => {
             thread::sleep(Duration::from_secs(5));
+            FileResult { status_line: "HTTP/1.1 200 OK".to_owned(), filename: None }
+        },
+        "GET /nofile HTTP/1.1" => {
             FileResult { status_line: "HTTP/1.1 200 OK".to_owned(), filename: None }
         },
         _ => {

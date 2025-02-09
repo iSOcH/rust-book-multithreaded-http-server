@@ -3,12 +3,5 @@
 version = 4
 
 [[package]]
-name = "hello"
-version = "0.1.0"
-dependencies = [
- "threadpool",
-]
-
-[[package]]
 name = "threadpool"
 version = "0.1.0"
