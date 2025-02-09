@@ -36,6 +36,8 @@ fn main() {
     thread::spawn(move || {
         for stream in listener.incoming() {
             let stream = stream.unwrap();
+
+            #[cfg(debug_assertions)]
             println!("Connection established with {:?}", stream);
 
             if let Err(e) = sender.send(StreamOrStop::Stream(stream)) {
@@ -116,6 +118,7 @@ fn handle_connection(mut stream: TcpStream) {
 
     stream.write_all(response.as_bytes()).unwrap();
 
+    #[cfg(debug_assertions)]
     println!("Connection closing with {:?}", stream);
 }
 

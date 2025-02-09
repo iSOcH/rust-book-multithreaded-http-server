@@ -15,6 +15,7 @@ impl Worker {
 
                 match maybe_next_job {
                     Ok(j) => {
+                        #[cfg(debug_assertions)]
                         println!("Worker {id} got a job; executing...");
                         j();
                     },
