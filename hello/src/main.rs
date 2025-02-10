@@ -1,3 +1,4 @@
+use log::*;
 use std::{
     fs,
     io::{prelude::*, BufReader},
@@ -6,11 +7,16 @@ use std::{
     time::Duration,
 };
 use std::sync::{mpsc, Arc};
+use env_logger;
 use threadpool::ThreadPool;
 
 fn main() {
+    // https://stackoverflow.com/a/79226203
+    let env = env_logger::Env::new().filter_or("RUST_LOG", "info");
+    env_logger::Builder::from_env(env).init();
+
     let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
-    println!("Listener started on {:?}", listener);
+    info!("Listener started on {:?}", listener);
 
     let pool = ThreadPool::build(4).expect("could not start up thread pool");
 
@@ -27,7 +33,7 @@ fn main() {
 
     ctrlc::
         set_handler(move || {
-            println!("Received Ctrl-C, shutting down...");
+            info!("Received Ctrl-C, shutting down...");
             sender_clone.send(StreamOrStop::Stop).unwrap();
         })
         .expect("Error setting Ctrl-C handler");
@@ -38,10 +44,10 @@ fn main() {
             let stream = stream.unwrap();
 
             #[cfg(debug_assertions)]
-            println!("Connection established with {:?}", stream);
+            debug!("Connection established with {:?}", stream);
 
             if let Err(e) = sender.send(StreamOrStop::Stream(stream)) {
-                eprintln!("Error forwarding stream, likely a new connection came in during shutdown: {e}");
+                warn!("Error forwarding stream, likely a new connection came in during shutdown: {e}");
                 break;
             }
         }
@@ -74,7 +80,7 @@ fn handle_connection(mut stream: TcpStream) {
     let first_request_line = match http_request.first() {
         Some(l) => l,
         None => {
-            eprintln!("Received empty request from {:?}, dropping connection", stream.peer_addr());
+            warn!("Received empty request from {:?}, dropping connection", stream.peer_addr());
             return;
         }
     };
@@ -119,7 +125,7 @@ fn handle_connection(mut stream: TcpStream) {
     stream.write_all(response.as_bytes()).unwrap();
 
     #[cfg(debug_assertions)]
-    println!("Connection closing with {:?}", stream);
+    debug!("Connection closing with {:?}", stream);
 }
 
 struct HttpResult {
